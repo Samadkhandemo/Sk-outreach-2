@@ -1,0 +1,14 @@
+# Environment files
+.env
+
+# Python cache/artifacts
+__pycache__/
+*.py[cod]
+
+# Local database/runtime files
+*.db
+*.sqlite3
+
+# OS/editor noise
+.DS_Store
+.vscode/
