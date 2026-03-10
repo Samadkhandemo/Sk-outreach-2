@@ -24,6 +24,8 @@ class EmailTask:
     role: str
     company: str
     domain: str | None = None
+    recipient_type: str = "recruiter"
+    recipient_email: str | None = None
 
     @property
     def first_name(self) -> str:
@@ -72,15 +74,17 @@ def normalize_input_domain(domain: str) -> str:
     return cleaned
 
 
+def resolve_domain(company: str, domain: str | None = None) -> str:
+    return normalize_input_domain(domain) if domain else f"{normalize_company_domain(company)}.com"
+
+
 def generate_email(name: str, company: str, domain: str | None = None) -> str:
     parts = [part for part in name.strip().lower().split() if part]
     if not parts:
         raise ValueError("Recruiter name is empty, cannot generate email.")
     first = re.sub(r"[^a-z0-9]", "", parts[0])
     last = re.sub(r"[^a-z0-9]", "", parts[-1]) if len(parts) > 1 else ""
-    company_domain = (
-        normalize_input_domain(domain) if domain else f"{normalize_company_domain(company)}.com"
-    )
+    company_domain = resolve_domain(company, domain)
     if not first or not company_domain:
         raise ValueError(
             f"Cannot generate email for name='{name}', company='{company}', domain='{domain}'."
@@ -141,8 +145,9 @@ def save_recruiter(db_path: Path, recruiter_name: str, company: str, email: str)
 
 
 def render_html_template(template: str, task: EmailTask) -> str:
+    first_name = task.first_name if task.recipient_type == "recruiter" else "Team"
     rendered = (
-        template.replace("{firstName}", task.first_name)
+        template.replace("{firstName}", first_name)
         .replace("{ROLE}", task.role)
         .replace("{Company}", task.company)
     )
@@ -228,6 +233,7 @@ class OutreachHandler(BaseHTTPRequestHandler):
             role = str(item.get("role", "")).strip()
             company = str(item.get("company", "")).strip()
             domain = str(item.get("domain", "")).strip() or None
+            send_company_handles = bool(item.get("send_company_handles", False))
             recruiters = item.get("recruiters")
             if not role or not company or not isinstance(recruiters, list) or not recruiters:
                 self._json(
@@ -240,17 +246,67 @@ class OutreachHandler(BaseHTTPRequestHandler):
                     },
                 )
                 return
+
+            resolved_domain = resolve_domain(company, domain)
+            if not resolved_domain:
+                self._json(
+                    400,
+                    {"error": f"Item {index} has invalid company/domain for email generation"},
+                )
+                return
+
+            item_tasks: list[EmailTask] = []
             for recruiter_name in recruiters:
                 recruiter_name = str(recruiter_name).strip()
-                if recruiter_name:
-                    tasks.append(
-                        EmailTask(
-                            recruiter_name=recruiter_name,
-                            role=role,
-                            company=company,
-                            domain=domain,
-                        )
+                if not recruiter_name:
+                    continue
+                try:
+                    recruiter_email = generate_email(recruiter_name, company, resolved_domain)
+                except ValueError:
+                    recruiter_email = None
+                item_tasks.append(
+                    EmailTask(
+                        recruiter_name=recruiter_name,
+                        role=role,
+                        company=company,
+                        domain=resolved_domain,
+                        recipient_type="recruiter",
+                        recipient_email=recruiter_email,
                     )
+                )
+
+            if send_company_handles:
+                item_tasks.append(
+                    EmailTask(
+                        recruiter_name="Careers Team",
+                        role=role,
+                        company=company,
+                        domain=resolved_domain,
+                        recipient_type="company_handle",
+                        recipient_email=f"careers@{resolved_domain}",
+                    )
+                )
+                item_tasks.append(
+                    EmailTask(
+                        recruiter_name="Talent Acquisition Team",
+                        role=role,
+                        company=company,
+                        domain=resolved_domain,
+                        recipient_type="company_handle",
+                        recipient_email=f"talentacquisition@{resolved_domain}",
+                    )
+                )
+
+            seen_emails: set[str] = set()
+            for task in item_tasks:
+                if not task.recipient_email:
+                    tasks.append(task)
+                    continue
+                email_key = task.recipient_email.lower()
+                if email_key in seen_emails:
+                    continue
+                seen_emails.add(email_key)
+                tasks.append(task)
 
         if not tasks:
             self._json(400, {"error": "No valid recruiters in payload"})
@@ -259,6 +315,14 @@ class OutreachHandler(BaseHTTPRequestHandler):
         sent = 0
         stored = 0
         duplicate_skipped = 0
+        recruiter_attempted = 0
+        recruiter_sent = 0
+        recruiter_stored = 0
+        recruiter_duplicate_skipped = 0
+        company_handle_attempted = 0
+        company_handle_sent = 0
+        company_handle_stored = 0
+        company_handle_duplicate_skipped = 0
         skipped: list[dict[str, str]] = []
         smtp = None
         try:
@@ -268,20 +332,27 @@ class OutreachHandler(BaseHTTPRequestHandler):
                 smtp.login(self.sender_email, self.app_password)
 
             for task in tasks:
-                try:
-                    to_email = generate_email(
-                        task.recruiter_name,
-                        task.company,
-                        task.domain,
+                if task.recipient_type == "recruiter":
+                    recruiter_attempted += 1
+                else:
+                    company_handle_attempted += 1
+
+                to_email = task.recipient_email
+                if not to_email:
+                    skipped.append(
+                        {
+                            "recipient": task.recruiter_name,
+                            "recipient_type": task.recipient_type,
+                            "reason": "Could not generate email",
+                        }
                     )
-                except ValueError as exc:
-                    skipped.append({"recruiter": task.recruiter_name, "reason": str(exc)})
                     continue
 
                 if not EMAIL_REGEX.match(to_email):
                     skipped.append(
                         {
-                            "recruiter": task.recruiter_name,
+                            "recipient": task.recruiter_name,
+                            "recipient_type": task.recipient_type,
                             "reason": f"Generated invalid email: {to_email}",
                         }
                     )
@@ -312,9 +383,21 @@ class OutreachHandler(BaseHTTPRequestHandler):
                 )
                 if inserted:
                     stored += 1
+                    if task.recipient_type == "recruiter":
+                        recruiter_stored += 1
+                    else:
+                        company_handle_stored += 1
                 else:
                     duplicate_skipped += 1
+                    if task.recipient_type == "recruiter":
+                        recruiter_duplicate_skipped += 1
+                    else:
+                        company_handle_duplicate_skipped += 1
                 sent += 1
+                if task.recipient_type == "recruiter":
+                    recruiter_sent += 1
+                else:
+                    company_handle_sent += 1
         except Exception as exc:
             self._json(500, {"error": str(exc)})
             return
@@ -333,6 +416,20 @@ class OutreachHandler(BaseHTTPRequestHandler):
                 "skipped": skipped,
                 "dry_run": self.dry_run,
                 "db_path": str(self.db_path),
+                "counters_by_type": {
+                    "recruiter": {
+                        "attempted": recruiter_attempted,
+                        "sent": recruiter_sent,
+                        "stored": recruiter_stored,
+                        "duplicate_skipped": recruiter_duplicate_skipped,
+                    },
+                    "company_handle": {
+                        "attempted": company_handle_attempted,
+                        "sent": company_handle_sent,
+                        "stored": company_handle_stored,
+                        "duplicate_skipped": company_handle_duplicate_skipped,
+                    },
+                },
             },
         )
 
