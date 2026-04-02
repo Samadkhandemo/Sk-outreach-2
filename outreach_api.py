@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 import re
 import sqlite3
@@ -13,9 +14,12 @@ from pathlib import Path
 from smtplib import SMTP_SSL
 from typing import Any
 
+from application_payload import fetch_recruiters, refresh_application_payload
+
 
 EMAIL_REGEX = re.compile(r"^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$")
 BASE_DIR = Path(__file__).resolve().parent
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -26,18 +30,26 @@ class EmailTask:
     domain: str | None = None
     recipient_type: str = "recruiter"
     recipient_email: str | None = None
+    include_experience_in_subject: bool = False
+    subject_experience: str = ""
 
     @property
     def first_name(self) -> str:
         cleaned = self.recruiter_name.strip()
         if not cleaned:
             return ""
+        if "@" in cleaned and EMAIL_REGEX.match(cleaned.lower()):
+            inferred = infer_name_from_email(cleaned)
+            if inferred:
+                return inferred.split()[0]
         return cleaned.split()[0]
 
 
 def load_env_file(path: Path) -> None:
     if not path.exists():
+        logger.info("Env file not found at %s, using existing environment", path)
         return
+    logger.info("Loading environment variables from %s", path)
     for raw in path.read_text(encoding="utf-8").splitlines():
         line = raw.strip()
         if not line or line.startswith("#") or "=" not in line:
@@ -78,6 +90,13 @@ def resolve_domain(company: str, domain: str | None = None) -> str:
     return normalize_input_domain(domain) if domain else f"{normalize_company_domain(company)}.com"
 
 
+def infer_name_from_email(email: str) -> str:
+    local_part = email.split("@", 1)[0].strip().lower()
+    normalized = re.sub(r"[._-]+", " ", local_part)
+    normalized = re.sub(r"\d+", " ", normalized).strip()
+    return normalized.title() if normalized else email
+
+
 def generate_email(name: str, company: str, domain: str | None = None) -> str:
     parts = [part for part in name.strip().lower().split() if part]
     if not parts:
@@ -94,6 +113,7 @@ def generate_email(name: str, company: str, domain: str | None = None) -> str:
 
 
 def init_db(db_path: Path) -> None:
+    logger.info("Initializing database at %s", db_path)
     conn = sqlite3.connect(db_path)
     try:
         conn.execute(
@@ -124,6 +144,7 @@ def init_db(db_path: Path) -> None:
             """
         )
         conn.commit()
+        logger.info("Database initialization completed for %s", db_path)
     finally:
         conn.close()
 
@@ -139,7 +160,12 @@ def save_recruiter(db_path: Path, recruiter_name: str, company: str, email: str)
             (recruiter_name, company, email),
         )
         conn.commit()
-        return cursor.rowcount > 0
+        inserted = cursor.rowcount > 0
+        if inserted:
+            logger.info("Stored recruiter entry for %s at %s", recruiter_name, email)
+        else:
+            logger.info("Skipped duplicate recruiter entry for %s at %s", recruiter_name, email)
+        return inserted
     finally:
         conn.close()
 
@@ -183,14 +209,108 @@ def create_message(
     return msg
 
 
+def parse_bool_field(value: Any) -> bool:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        normalized = value.strip().lower()
+        if normalized in {"1", "true", "yes", "y"}:
+            return True
+        if normalized in {"0", "false", "no", "n", ""}:
+            return False
+    return bool(value)
+
+
+def build_email_subject(task: EmailTask) -> str:
+    role_segment = task.role
+    if task.include_experience_in_subject and task.subject_experience:
+        role_segment = f"{task.role} with {task.subject_experience} YOE"
+    subject_parts = ["Immediate Joiner", role_segment]
+    subject_parts.append("Java, Spring Boot, Kafka")
+    return " | ".join(subject_parts)
+
+
+def build_recruiter_task(
+    recruiter_item: Any,
+    *,
+    item_index: int,
+    recruiter_index: int,
+    role: str,
+    company: str,
+    resolved_domain: str,
+    include_experience_in_subject: bool,
+    subject_experience: str,
+) -> EmailTask | None:
+    if isinstance(recruiter_item, str):
+        raw_value = recruiter_item.strip()
+        if EMAIL_REGEX.match(raw_value):
+            recruiter_name = infer_name_from_email(raw_value)
+            recruiter_email = raw_value.lower()
+            logger.info(
+                "Detected recruiter email directly in payload for company=%s email=%s",
+                company,
+                recruiter_email,
+            )
+        else:
+            recruiter_name = raw_value
+            try:
+                recruiter_email = generate_email(recruiter_name, company, resolved_domain)
+            except ValueError:
+                recruiter_email = None
+    elif isinstance(recruiter_item, dict):
+        explicit_email = str(recruiter_item.get("email", "")).strip().lower() or None
+        recruiter_name = str(
+            recruiter_item.get(
+                "name",
+                recruiter_item.get(
+                    "recruiter_name",
+                    infer_name_from_email(explicit_email) if explicit_email else "",
+                ),
+            )
+        ).strip()
+        if explicit_email:
+            recruiter_email = explicit_email
+            logger.info(
+                "Using recruiter email provided in object for recruiter=%s company=%s email=%s",
+                recruiter_name or explicit_email,
+                company,
+                recruiter_email,
+            )
+        else:
+            try:
+                recruiter_email = generate_email(recruiter_name, company, resolved_domain)
+            except ValueError:
+                recruiter_email = None
+    else:
+        raise ValueError(
+            f"Item {item_index} recruiter {recruiter_index} must be a string or object"
+        )
+
+    if not recruiter_name:
+        return None
+
+    return EmailTask(
+        recruiter_name=recruiter_name,
+        role=role,
+        company=company,
+        domain=resolved_domain,
+        recipient_type="recruiter",
+        recipient_email=recruiter_email,
+        include_experience_in_subject=include_experience_in_subject,
+        subject_experience=subject_experience,
+    )
+
+
 class OutreachHandler(BaseHTTPRequestHandler):
     sender_email = ""
     app_password = ""
     resume_path = Path("")
     db_path = Path("outreach.db")
-    subject_template = "Application for {ROLE} at {Company}"
     template = ""
     dry_run = False
+    default_role = "Backend Engineer"
+    application_payload: list[dict[str, Any]] = []
+    application_output_path = BASE_DIR / "converter" / "appliesOutput.json"
 
     def _json(self, status: int, payload: dict[str, Any]) -> None:
         encoded = json.dumps(payload).encode("utf-8")
@@ -200,7 +320,79 @@ class OutreachHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(encoded)
 
+    def log_message(self, format: str, *args: Any) -> None:
+        logger.info(
+            "HTTP access client=%s path=%s %s",
+            self.client_address[0],
+            self.path,
+            format % args,
+        )
+
+    def do_GET(self) -> None:
+        logger.info("Handling GET request for %s", self.path)
+        if self.path == "/applications":
+            self._json(
+                200,
+                {
+                    "count": len(self.application_payload),
+                    "applications": self.application_payload,
+                    "db_path": str(self.db_path),
+                    "role": self.default_role,
+                },
+            )
+            return
+
+        if self.path == "/applications/refresh":
+            try:
+                self.application_payload = refresh_application_payload(
+                    self.db_path,
+                    role=self.default_role,
+                    output_path=self.application_output_path,
+                )
+            except Exception as exc:
+                logger.exception("Application payload refresh failed")
+                self._json(500, {"error": str(exc)})
+                return
+
+            logger.info(
+                "Application payload refreshed via API with %s grouped entries",
+                len(self.application_payload),
+            )
+            self._json(
+                200,
+                {
+                    "count": len(self.application_payload),
+                    "applications": self.application_payload,
+                    "db_path": str(self.db_path),
+                    "output_path": str(self.application_output_path),
+                    "role": self.default_role,
+                    "refreshed": True,
+                },
+            )
+            return
+
+        if self.path != "/entries":
+            self._json(404, {"error": "Not found"})
+            return
+
+        try:
+            entries = fetch_recruiters(self.db_path)
+        except Exception as exc:
+            logger.exception("Failed to fetch recruiter entries")
+            self._json(500, {"error": str(exc)})
+            return
+
+        self._json(
+            200,
+            {
+                "count": len(entries),
+                "entries": entries,
+                "db_path": str(self.db_path),
+            },
+        )
+
     def do_POST(self) -> None:
+        logger.info("Handling POST request for %s", self.path)
         if self.path != "/send":
             self._json(404, {"error": "Not found"})
             return
@@ -225,6 +417,8 @@ class OutreachHandler(BaseHTTPRequestHandler):
             self._json(400, {"error": "Payload must be an array of objects"})
             return
 
+        logger.info("Received send request with %s top-level items", len(payload))
+
         tasks: list[EmailTask] = []
         for index, item in enumerate(payload):
             if not isinstance(item, dict):
@@ -234,6 +428,10 @@ class OutreachHandler(BaseHTTPRequestHandler):
             company = str(item.get("company", "")).strip()
             domain = str(item.get("domain", "")).strip() or None
             send_company_handles = bool(item.get("send_company_handles", False))
+            include_experience_in_subject = parse_bool_field(
+                item.get("include_experience_in_subject", False)
+            )
+            subject_experience = str(item.get("subject_experience", "")).strip()
             recruiters = item.get("recruiters")
             if not role or not company or not isinstance(recruiters, list) or not recruiters:
                 self._json(
@@ -242,6 +440,17 @@ class OutreachHandler(BaseHTTPRequestHandler):
                         "error": (
                             f"Item {index} requires non-empty role, company, "
                             "and recruiters array"
+                        )
+                    },
+                )
+                return
+            if include_experience_in_subject and not subject_experience:
+                self._json(
+                    400,
+                    {
+                        "error": (
+                            f"Item {index} must provide non-empty subject_experience when "
+                            "include_experience_in_subject is true"
                         )
                     },
                 )
@@ -256,24 +465,23 @@ class OutreachHandler(BaseHTTPRequestHandler):
                 return
 
             item_tasks: list[EmailTask] = []
-            for recruiter_name in recruiters:
-                recruiter_name = str(recruiter_name).strip()
-                if not recruiter_name:
-                    continue
+            for recruiter_index, recruiter_item in enumerate(recruiters):
                 try:
-                    recruiter_email = generate_email(recruiter_name, company, resolved_domain)
-                except ValueError:
-                    recruiter_email = None
-                item_tasks.append(
-                    EmailTask(
-                        recruiter_name=recruiter_name,
+                    task = build_recruiter_task(
+                        recruiter_item,
+                        item_index=index,
+                        recruiter_index=recruiter_index,
                         role=role,
                         company=company,
-                        domain=resolved_domain,
-                        recipient_type="recruiter",
-                        recipient_email=recruiter_email,
+                        resolved_domain=resolved_domain,
+                        include_experience_in_subject=include_experience_in_subject,
+                        subject_experience=subject_experience,
                     )
-                )
+                except ValueError as exc:
+                    self._json(400, {"error": str(exc)})
+                    return
+                if task is not None:
+                    item_tasks.append(task)
 
             if send_company_handles:
                 item_tasks.append(
@@ -284,6 +492,8 @@ class OutreachHandler(BaseHTTPRequestHandler):
                         domain=resolved_domain,
                         recipient_type="company_handle",
                         recipient_email=f"careers@{resolved_domain}",
+                        include_experience_in_subject=include_experience_in_subject,
+                        subject_experience=subject_experience,
                     )
                 )
                 item_tasks.append(
@@ -294,6 +504,20 @@ class OutreachHandler(BaseHTTPRequestHandler):
                         domain=resolved_domain,
                         recipient_type="company_handle",
                         recipient_email=f"talentacquisition@{resolved_domain}",
+                        include_experience_in_subject=include_experience_in_subject,
+                        subject_experience=subject_experience,
+                    )
+                )
+                item_tasks.append(
+                    EmailTask(
+                        recruiter_name="HR Team",
+                        role=role,
+                        company=company,
+                        domain=resolved_domain,
+                        recipient_type="company_handle",
+                        recipient_email=f"hr@{resolved_domain}",
+                        include_experience_in_subject=include_experience_in_subject,
+                        subject_experience=subject_experience,
                     )
                 )
 
@@ -311,6 +535,8 @@ class OutreachHandler(BaseHTTPRequestHandler):
         if not tasks:
             self._json(400, {"error": "No valid recruiters in payload"})
             return
+
+        logger.info("Prepared %s email tasks for processing", len(tasks))
 
         sent = 0
         stored = 0
@@ -330,6 +556,9 @@ class OutreachHandler(BaseHTTPRequestHandler):
                 context = ssl.create_default_context()
                 smtp = SMTP_SSL("smtp.gmail.com", 465, context=context)
                 smtp.login(self.sender_email, self.app_password)
+                logger.info("SMTP connection established for sender %s", self.sender_email)
+            else:
+                logger.info("Running send request in dry-run mode")
 
             for task in tasks:
                 if task.recipient_type == "recruiter":
@@ -359,11 +588,7 @@ class OutreachHandler(BaseHTTPRequestHandler):
                     continue
 
                 html_body = render_html_template(self.template, task)
-                subject = (
-                    self.subject_template.replace("{ROLE}", task.role).replace(
-                        "{Company}", task.company
-                    )
-                )
+                subject = build_email_subject(task)
 
                 if not self.dry_run:
                     msg = create_message(
@@ -374,6 +599,12 @@ class OutreachHandler(BaseHTTPRequestHandler):
                         resume_path=self.resume_path,
                     )
                     smtp.send_message(msg)
+                    logger.info(
+                        "Email sent to %s for company=%s recipient_type=%s",
+                        to_email,
+                        task.company,
+                        task.recipient_type,
+                    )
 
                 inserted = save_recruiter(
                     self.db_path,
@@ -399,11 +630,22 @@ class OutreachHandler(BaseHTTPRequestHandler):
                 else:
                     company_handle_sent += 1
         except Exception as exc:
+            logger.exception("Send request failed")
             self._json(500, {"error": str(exc)})
             return
         finally:
             if smtp is not None:
                 smtp.quit()
+                logger.info("SMTP connection closed")
+
+        logger.info(
+            "Send request completed processed=%s sent=%s stored=%s skipped=%s duplicates=%s",
+            len(tasks),
+            sent,
+            stored,
+            len(skipped),
+            duplicate_skipped,
+        )
 
         self._json(
             200,
@@ -435,16 +677,22 @@ class OutreachHandler(BaseHTTPRequestHandler):
 
 
 def build_handler() -> type[OutreachHandler]:
+    logging.basicConfig(
+        level=getattr(logging, os.getenv("LOG_LEVEL", "INFO").upper(), logging.INFO),
+        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+    )
     load_env_file(BASE_DIR / ".env")
 
     sender_email = os.getenv("GMAIL_SENDER_EMAIL", "").strip()
     app_password = os.getenv("GMAIL_APP_PASSWORD", "").strip()
     resume_path = resolve_path(os.getenv("RESUME_PATH", "").strip())
     db_path = resolve_path(os.getenv("DB_PATH", "outreach.db"))
-    subject_template = os.getenv(
-        "EMAIL_SUBJECT_TEMPLATE", "Application for {ROLE} at {Company}"
-    ).strip()
     dry_run = os.getenv("DRY_RUN", "false").strip().lower() in {"1", "true", "yes"}
+    default_role = os.getenv("DEFAULT_ROLE", "Backend Engineer").strip() or "Backend Engineer"
+    application_output_path = resolve_path(
+        os.getenv("APPLICATION_OUTPUT_PATH", "converter/appliesOutput.json").strip()
+        or "converter/appliesOutput.json"
+    )
 
     template_path_value = os.getenv("EMAIL_TEMPLATE_PATH", "email_template.html").strip()
     template_path = resolve_path(template_path_value)
@@ -460,6 +708,16 @@ def build_handler() -> type[OutreachHandler]:
         raise ValueError("RESUME_PATH not found or missing")
 
     init_db(db_path)
+    application_payload = refresh_application_payload(
+        db_path,
+        role=default_role,
+        output_path=application_output_path,
+    )
+    logger.info(
+        "Startup application payload ready with %s grouped entries at %s",
+        len(application_payload),
+        application_output_path,
+    )
 
     class ConfiguredOutreachHandler(OutreachHandler):
         pass
@@ -468,9 +726,11 @@ def build_handler() -> type[OutreachHandler]:
     ConfiguredOutreachHandler.app_password = app_password
     ConfiguredOutreachHandler.resume_path = resume_path
     ConfiguredOutreachHandler.db_path = db_path
-    ConfiguredOutreachHandler.subject_template = subject_template
     ConfiguredOutreachHandler.template = template
     ConfiguredOutreachHandler.dry_run = dry_run
+    ConfiguredOutreachHandler.default_role = default_role
+    ConfiguredOutreachHandler.application_payload = application_payload
+    ConfiguredOutreachHandler.application_output_path = application_output_path
     return ConfiguredOutreachHandler
 
 
@@ -479,6 +739,8 @@ def main() -> int:
     host = os.getenv("HOST", "127.0.0.1").strip() or "127.0.0.1"
     handler = build_handler()
     server = ThreadingHTTPServer((host, port), handler)
+    logger.info("Outreach API starting on http://%s:%s", host, port)
+    logger.info("Using DB at %s", handler.db_path)
     print(f"Outreach API listening on http://{host}:{port}")
     print(f"Using DB: {handler.db_path}")
     server.serve_forever()

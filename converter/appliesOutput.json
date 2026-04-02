@@ -1,0 +1,785 @@
+[
+  {
+    "role": "Backend Engineer",
+    "company": "samad",
+    "domain": "gmail.com",
+    "send_company_handles": false,
+    "recruiters": [
+      "Samadrese"
+    ]
+  },
+  {
+    "role": "Backend Engineer",
+    "company": "Hyland",
+    "domain": "hyland.com",
+    "send_company_handles": false,
+    "recruiters": [
+      "Namrata Basak",
+      "Payal Ramtake",
+      "Nutan Barmola",
+      "Mayuri Singh"
+    ]
+  },
+  {
+    "role": "Backend Engineer",
+    "company": "Natwest",
+    "domain": "natwest.com",
+    "send_company_handles": false,
+    "recruiters": [
+      "Khushi Jain",
+      "Sanjoli Saxena",
+      "Srishti Singh",
+      "Pooja Arora",
+      "Neha Rohilla",
+      "Deepti Kalia",
+      "Ayan Bose",
+      "Suganya Mothi",
+      "Manisha Sinha",
+      "Ekta Bathla",
+      "Nutan Barmola",
+      "Mayiuri Singh",
+      "Astha Kumar"
+    ]
+  },
+  {
+    "role": "Backend Engineer",
+    "company": "Anaplan",
+    "domain": "anaplan.com",
+    "send_company_handles": false,
+    "recruiters": [
+      "Stu George",
+      "Nitesh Sharma",
+      "Shital Devkamble",
+      "Arusha Raheja",
+      "Garima Singh",
+      "Shalini Thakur"
+    ]
+  },
+  {
+    "role": "Backend Engineer",
+    "company": "Tejas Networks",
+    "domain": "tejasnetworks.com",
+    "send_company_handles": false,
+    "recruiters": [
+      "Chaitra Manjunath",
+      "Satyam Shah"
+    ]
+  },
+  {
+    "role": "Backend Engineer",
+    "company": "Capgemini",
+    "domain": "capgemini.com",
+    "send_company_handles": false,
+    "recruiters": [
+      "samadrese@gmail.com",
+      "Paladi Bharath",
+      "Saba Nousheen",
+      "Mohammed Aleemuddin",
+      "Shubham Gautam",
+      "Aman Kumar",
+      "Shradha Pundir",
+      "Roshni Kashyap",
+      "Aanchal Tripathi",
+      "Smita Kumari",
+      "Mayank Jha",
+      "Pooja Sharma",
+      "Keerti Yadav",
+      "Sharat Shashi"
+    ]
+  },
+  {
+    "role": "Backend Engineer",
+    "company": "Thoughtworks",
+    "domain": "thoughtworks.com",
+    "send_company_handles": false,
+    "recruiters": [
+      "Saran Sathiya",
+      "Ambica Bharadwaj",
+      "Vidhi Rupanwal",
+      "Pragya Kiran",
+      "Sukriti Sharma",
+      "Sharyu Kadam",
+      "Ruchi Puri",
+      "Manik Banga",
+      "Geetanjali Chauhan",
+      "Deepikha Prakash"
+    ]
+  },
+  {
+    "role": "Backend Engineer",
+    "company": "Antino",
+    "domain": "antino.com",
+    "send_company_handles": false,
+    "recruiters": [
+      "Nidhi Thakur",
+      "Vidhi Gupta",
+      "Pooja Trivedi",
+      "Swati Kumari",
+      "Deshma Preetha"
+    ]
+  },
+  {
+    "role": "Backend Engineer",
+    "company": "antino",
+    "domain": "antino.com",
+    "send_company_handles": false,
+    "recruiters": [
+      "Anju Kushwaha",
+      "Gayatri Gupta",
+      "Team"
+    ]
+  },
+  {
+    "role": "Backend Engineer",
+    "company": "IBM",
+    "domain": "ibm.com",
+    "send_company_handles": false,
+    "recruiters": [
+      "Mudassir Khan",
+      "Ruheena Khan",
+      "Shabaz Pasha",
+      "Vivek Mayur",
+      "Manisha Suna",
+      "Shah Alam",
+      "Garima Shukla",
+      "Priya Patel",
+      "Sakshi Jain",
+      "Piyush Gupta",
+      "Sheela Priyadarshini",
+      "Prashant Singh",
+      "Sindhu Pathak",
+      "Rakesh Rana",
+      "Sonali Monalisa",
+      "Sarthak Dixit",
+      "Pakhi Khare",
+      "Parasanna Reddy",
+      "Anshika Singh",
+      "Bincy Malekal",
+      "Saba Warsi",
+      "Manisha Bhalla"
+    ]
+  },
+  {
+    "role": "Backend Engineer",
+    "company": "Luxoft",
+    "domain": "luxoft.com",
+    "send_company_handles": false,
+    "recruiters": [
+      "Kratika Choubey",
+      "Vanya Shukla",
+      "Parasanna Reddy"
+    ]
+  },
+  {
+    "role": "Backend Engineer",
+    "company": "Pocketpills",
+    "domain": "pocketpills.com",
+    "send_company_handles": false,
+    "recruiters": [
+      "Monika",
+      "Abhinav Gupta",
+      "Christina Khokhar"
+    ]
+  },
+  {
+    "role": "Backend Engineer",
+    "company": "Ciena",
+    "domain": "ciena.com",
+    "send_company_handles": false,
+    "recruiters": [
+      "Anindita Mukherjee",
+      "Shreya Gupta",
+      "Firoz Ansari",
+      "Monika"
+    ]
+  },
+  {
+    "role": "Backend Engineer",
+    "company": "Paytm",
+    "domain": "paytm.com",
+    "send_company_handles": false,
+    "recruiters": [
+      "Team",
+      "Ananya Verma",
+      "Hanshika Bhushan",
+      "Kajal Jadaun",
+      "Sneha sigh",
+      "Ankit Kumar",
+      "Vanshika Singh",
+      "Ravi Verma",
+      "Arisha Naaz",
+      "Shweta Sharma",
+      "Altamash Ali",
+      "Sindhu Pathak",
+      "Kapil Kaushal",
+      "Ratan Chourashia",
+      "Priyanshi Gupta",
+      "Ritika Verma",
+      "Kunal Wason",
+      "Simran Madan"
+    ]
+  },
+  {
+    "role": "Backend Engineer",
+    "company": "Payoneer",
+    "domain": "payoneer.io",
+    "send_company_handles": false,
+    "recruiters": [
+      "Team",
+      "Lior Aharonoff",
+      "Shivani Sharma",
+      "Shane he",
+      "Franzel Delgado",
+      "Kinjal Choudhary",
+      "Jigesha Gulati",
+      "Priyanshi Gupta",
+      "Ishita Yadav",
+      "Aafiya Sidrath",
+      "Ankush khatkar"
+    ]
+  },
+  {
+    "role": "Backend Engineer",
+    "company": "Recro",
+    "domain": "recro.io",
+    "send_company_handles": false,
+    "recruiters": [
+      "Team",
+      "Shifat s",
+      "Bhavya Shree",
+      "Anju Kumari",
+      "Rupali Malhotra",
+      "Sweta Pandey",
+      "Zuhi Karn",
+      "Nehlata Pandey",
+      "Arya Priyadarshini",
+      "Swapnil Vatsa",
+      "Akshita Bhardwaj",
+      "Ashwika Singh",
+      "Nilesh c"
+    ]
+  },
+  {
+    "role": "Backend Engineer",
+    "company": "Comviva",
+    "domain": "comviva.com",
+    "send_company_handles": false,
+    "recruiters": [
+      "Team",
+      "Akshata Reddy",
+      "Sweta Pandey",
+      "Zuhi Karn",
+      "Mamta Kumari",
+      "Anam Khan",
+      "Soma Sen",
+      "Bhawna Sharma",
+      "Puja Kumari",
+      "Bharti Choudhary"
+    ]
+  },
+  {
+    "role": "Backend Engineer",
+    "company": "spglobal",
+    "domain": "spglobal.com",
+    "send_company_handles": false,
+    "recruiters": [
+      "Team",
+      "Abhishek Jha",
+      "Saloni agrawal",
+      "Abhijeet Midha",
+      "Shailja Sharma",
+      "Manpreet Kalra",
+      "Ashwini Mudaliyar",
+      "Mugdha Baluja",
+      "Krishna Saikumar",
+      "Kanika Handa"
+    ]
+  },
+  {
+    "role": "Backend Engineer",
+    "company": "Birlasoft",
+    "domain": "birlasoft.com",
+    "send_company_handles": false,
+    "recruiters": [
+      "Team",
+      "Deepak Pal",
+      "Sarita Dash",
+      "Vikram Singh",
+      "Sweta singh",
+      "Anirudh Kumar"
+    ]
+  },
+  {
+    "role": "Backend Engineer",
+    "company": "U2opia",
+    "domain": "u2opiamobile.com",
+    "send_company_handles": false,
+    "recruiters": [
+      "Team akamai",
+      "Payal Mehrotra",
+      "Charu Rajpal",
+      "Deshna Khandelwal",
+      "Deepak Saini",
+      "Hemendra Bist"
+    ]
+  },
+  {
+    "role": "Backend Engineer",
+    "company": "Akamai",
+    "domain": "akamai.com",
+    "send_company_handles": false,
+    "recruiters": [
+      "Team akamai",
+      "Mohammed Adil",
+      "Abhishek Kumar",
+      "Nagajothi edumban",
+      "Fawad mushtaq",
+      "Rachita Mahadev"
+    ]
+  },
+  {
+    "role": "Backend Engineer",
+    "company": "Wheels Eye",
+    "domain": "wheelseye.com",
+    "send_company_handles": false,
+    "recruiters": [
+      "Team Wheelseye",
+      "Maanvi Agarwal",
+      "Vartika Sharma",
+      "Anita",
+      "Anita Dagar"
+    ]
+  },
+  {
+    "role": "Backend Engineer",
+    "company": "wellsfargo",
+    "domain": "wellsfargo.com",
+    "send_company_handles": false,
+    "recruiters": [
+      "Neelam Singh",
+      "Aparajita S",
+      "Riya Kar",
+      "Arun Dharmaraj",
+      "Team WellsFargo",
+      "HR Team"
+    ]
+  },
+  {
+    "role": "Backend Engineer",
+    "company": "Virtusa",
+    "domain": "virtusa.com",
+    "send_company_handles": false,
+    "recruiters": [
+      "Rakesh Kumar Ramesh",
+      "Harsha Arya",
+      "Meenakshi Vignesh Kumar",
+      "Bhalamurali Seran",
+      "Saurabh Singh",
+      "Careers Team",
+      "Talent Acquisition Team",
+      "HR Team"
+    ]
+  },
+  {
+    "role": "Backend Engineer",
+    "company": "Idfc First Bank",
+    "domain": "idfcfirstbank.com",
+    "send_company_handles": false,
+    "recruiters": [
+      "Careers Team",
+      "Talent Acquisition Team",
+      "Ajesh R",
+      "Arya Nair",
+      "Nayana S",
+      "Meenal Kulkarni",
+      "Babitha Rao",
+      "Muskan Handa",
+      "Gopinath Sakthivel",
+      "Gopinath",
+      "Ankita Singh",
+      "Aditya Kumar",
+      "Binay Mal",
+      "Jenil Anto",
+      "Dhanshree Deshmukh",
+      "Richa Goswami",
+      "Harish Kumar"
+    ]
+  },
+  {
+    "role": "Backend Engineer",
+    "company": "Kyndryl",
+    "domain": "kyndryl.com",
+    "send_company_handles": false,
+    "recruiters": [
+      "Careers Team",
+      "Talent Acquisition Team",
+      "Madina H",
+      "Ravikanth V",
+      "Praveen Kumar",
+      "Shazia Arzoo",
+      "Sricharan Samudrala",
+      "Vaishnavi Ambade"
+    ]
+  },
+  {
+    "role": "Backend Engineer",
+    "company": "Nielsen",
+    "domain": "nielsen.com",
+    "send_company_handles": false,
+    "recruiters": [
+      "Careers Team",
+      "Talent Acquisition Team",
+      "Sushmitha S",
+      "Arif Khan",
+      "Nikhil Tanwade",
+      "Rashmi Nair",
+      "Ruksar S",
+      "Anshul Rana",
+      "Rajesh NT",
+      "Dhivya Lakshmi",
+      "Shweta Kadam",
+      "Mohd Akbar",
+      "Darshan Patel",
+      "Sakshi Bisht",
+      "Iqra Naeem",
+      "Naziya Syeda",
+      "Akriti Dwivedi",
+      "Sukanya K",
+      "Hena Haris"
+    ]
+  },
+  {
+    "role": "Backend Engineer",
+    "company": "Rapido",
+    "domain": "rapido.bike",
+    "send_company_handles": false,
+    "recruiters": [
+      "Careers Team",
+      "Talent Acquisition Team",
+      "HR Team",
+      "Sagarika Singh",
+      "Ashik Subhash",
+      "Prerna Choudhary",
+      "Sonal Madan",
+      "Sonal Kapoor",
+      "Karapana Sonali",
+      "Shantanu Das",
+      "Neha Sharma",
+      "Ankita Jain",
+      "Suhashni H",
+      "Ankita Das"
+    ]
+  },
+  {
+    "role": "Backend Engineer",
+    "company": "VBeyond",
+    "domain": "vbeyond.com",
+    "send_company_handles": false,
+    "recruiters": [
+      "Anchita Gupta",
+      "Shruti Srivastava",
+      "Arshad Kazmi",
+      "Risabh singh"
+    ]
+  },
+  {
+    "role": "Backend Engineer",
+    "company": "Coforge",
+    "domain": "coforge.com",
+    "send_company_handles": false,
+    "recruiters": [
+      "Shriya Jain",
+      "Tarun Negi",
+      "Radhika Gupta",
+      "Trisha Maitra",
+      "Radhika Singhal",
+      "Anamika Kumari",
+      "Shobit Sharma"
+    ]
+  },
+  {
+    "role": "Backend Engineer",
+    "company": "Ixigo",
+    "domain": "ixigo.com",
+    "send_company_handles": false,
+    "recruiters": [
+      "Careers Team",
+      "Talent Acquisition Team",
+      "Anirudh Kacker",
+      "Sumit Jain",
+      "Asmita Pant",
+      "Karan Arora",
+      "Priya Ojha",
+      "Mounica P",
+      "Pradeep Singh",
+      "Ridhi Kapoor",
+      "Aniridh Kacker"
+    ]
+  },
+  {
+    "role": "Backend Engineer",
+    "company": "Dunnhumby",
+    "domain": "dunnhumby.com",
+    "send_company_handles": false,
+    "recruiters": [
+      "Careers Team",
+      "Talent Acquisition Team",
+      "Yamini Rawat",
+      "Kushal Singhal",
+      "Evie Johns",
+      "Isabel Goez",
+      "Ashish Moudgil",
+      "Hema Koranga",
+      "Sapna Upadhyay",
+      "Sanya Gulati",
+      "Taranjeet Singh"
+    ]
+  },
+  {
+    "role": "Backend Engineer",
+    "company": "Amex GBT",
+    "domain": "amexgbt.com",
+    "send_company_handles": false,
+    "recruiters": [
+      "Careers Team",
+      "Talent Acquisition Team",
+      "Himank Madhani",
+      "Liyakath Khan",
+      "Thomas Victor",
+      "Prerana Sharma",
+      "Lovee Chopra",
+      "Ritu Dhania",
+      "Monomita Ghosh",
+      "Jagriti Raj"
+    ]
+  },
+  {
+    "role": "Backend Engineer",
+    "company": "United Airlines",
+    "domain": "united.com",
+    "send_company_handles": false,
+    "recruiters": [
+      "Careers Team",
+      "Talent Acquisition Team",
+      "Jessica Austin",
+      "Daniel Joseph",
+      "Niloy Bakshi",
+      "Shreya S",
+      "Sakshi Arora",
+      "Neha Komaravolu",
+      "Saloni Duseja",
+      "Aishwarya S",
+      "Devanshi Gupta"
+    ]
+  },
+  {
+    "role": "Backend Engineer",
+    "company": "Nagarro",
+    "domain": "gmail.com",
+    "send_company_handles": false,
+    "recruiters": [
+      "HR Team",
+      "Talent Acquisition Team",
+      "Careers Team",
+      "samad khan",
+      "Surbhi Mathur",
+      "Karshma Goel"
+    ]
+  },
+  {
+    "role": "Backend Engineer",
+    "company": "SentinelOne",
+    "domain": "sentinelone.com",
+    "send_company_handles": false,
+    "recruiters": [
+      "HR Team",
+      "Talent Acquisition Team",
+      "Careers Team",
+      "Sushmita Das",
+      "Angelina Tiwari",
+      "Garima More",
+      "Sudbaon Jaiswal"
+    ]
+  },
+  {
+    "role": "Backend Engineer",
+    "company": "Plum",
+    "domain": "plumhq.com",
+    "send_company_handles": false,
+    "recruiters": [
+      "HR Team",
+      "Talent Acquisition Team",
+      "Careers Team",
+      "Aashna Shroff"
+    ]
+  },
+  {
+    "role": "Backend Engineer",
+    "company": "Tesco",
+    "domain": "in.tesco.com",
+    "send_company_handles": false,
+    "recruiters": [
+      "HR Team",
+      "Talent Acquisition Team",
+      "Careers Team",
+      "Karthik R",
+      "Anjali",
+      "Anjali N",
+      "Kavya P",
+      "Varun Prasad",
+      "Pavan Kumar",
+      "Sanchita Guha",
+      "Suprabha Nagaraja",
+      "Sumathi Murali",
+      "Shamantha Dorai",
+      "Limi Mathew"
+    ]
+  },
+  {
+    "role": "Backend Engineer",
+    "company": "Modlix",
+    "domain": "modlix.com",
+    "send_company_handles": false,
+    "recruiters": [
+      "Mounica Mouni"
+    ]
+  },
+  {
+    "role": "Backend Engineer",
+    "company": "Bottomline",
+    "domain": "bottomline.com",
+    "send_company_handles": false,
+    "recruiters": [
+      "Kaithlin Kerrigan",
+      "Mukul Bhatnagar",
+      "Rashmi B",
+      "Suneetha P",
+      "Rajesh G",
+      "Sanjay Lena",
+      "Karen Dsouza",
+      "Mohd Ansaf",
+      "Ansaf Mohd",
+      "Keshav Prasad",
+      "Vinushree Shivalingaiah",
+      "Benjamain K",
+      "Shilpa Punekar"
+    ]
+  },
+  {
+    "role": "Backend Engineer",
+    "company": "Applied Materials",
+    "domain": "amat.com",
+    "send_company_handles": false,
+    "recruiters": [
+      "Pratik Das",
+      "Arun Gowda",
+      "Devika Srinivas",
+      "Diwakar Ambe",
+      "Shalbha Kaushik"
+    ]
+  },
+  {
+    "role": "Backend Engineer",
+    "company": "Porter",
+    "domain": "porter.in",
+    "send_company_handles": false,
+    "recruiters": [
+      "Shreya Shukla",
+      "Debashish Kumar",
+      "Shreya M",
+      "Dhatrija Naidu",
+      "Deepika Bhand",
+      "Swati Kumari",
+      "Sheeja Mathew",
+      "Aishwarya Roy",
+      "Nishith Monteiro",
+      "Satyajit K"
+    ]
+  },
+  {
+    "role": "Backend Engineer",
+    "company": "Licious",
+    "domain": "licious.com",
+    "send_company_handles": false,
+    "recruiters": [
+      "Sanu Wilfred",
+      "Moushmi Priya",
+      "Aenaaz Walloo",
+      "Manisha Yadav",
+      "Deepika Gowrisankar",
+      "Deepika Joshi"
+    ]
+  },
+  {
+    "role": "Backend Engineer",
+    "company": "Geidea",
+    "domain": "geidea.net",
+    "send_company_handles": false,
+    "recruiters": [
+      "Alqahtani",
+      "Omar Adel",
+      "Priti Ghimire",
+      "Azhar Almutairi",
+      "Sarah Adel"
+    ]
+  },
+  {
+    "role": "Backend Engineer",
+    "company": "BlackRock",
+    "domain": "blackrock.com",
+    "send_company_handles": false,
+    "recruiters": [
+      "Mallika Banerjee",
+      "Shalom Pimenta",
+      "Supriyo Maji",
+      "Prosenjit Konwar",
+      "Surendra Gupta",
+      "Riya Batra",
+      "Prosenjit Konswar",
+      "Neerja Nath",
+      "Ranjani Iyer",
+      "Sajan Johari",
+      "Meghna Rawat"
+    ]
+  },
+  {
+    "role": "Backend Engineer",
+    "company": "Zee",
+    "domain": "zee.com",
+    "send_company_handles": false,
+    "recruiters": [
+      "Kumar Gaurav",
+      "Anirudha Jadi",
+      "Shubham Kumar",
+      "Sudeshna Mohanty",
+      "Saurav Prasad",
+      "Pallavi Rawal",
+      "Khagendra Thapa"
+    ]
+  },
+  {
+    "role": "Backend Engineer",
+    "company": "Cisco",
+    "domain": "cisco.com",
+    "send_company_handles": false,
+    "recruiters": [
+      "Harshit Singh",
+      "Arnab Poddar",
+      "Shivendra Chaturvedi",
+      "Vivek Khurana",
+      "Dixith Rao",
+      "Dhanush Mohan",
+      "Pooja Meethal"
+    ]
+  },
+  {
+    "role": "Backend Engineer",
+    "company": "Summit Consulting",
+    "domain": "summitconsulting.in",
+    "send_company_handles": false,
+    "recruiters": [
+      "Anvesh Manchala",
+      "Chandrakanta Sahoo"
+    ]
+  }
+]

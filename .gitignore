@@ -7,8 +7,14 @@ __pycache__/
 
 # Local database/runtime files
 *.db
+*.sqlite
 *.sqlite3
 
 # OS/editor noise
 .DS_Store
 .vscode/
+.codex/
+.codex
+
+# Local private documents
+Abdul_Samad_resume.pdf
