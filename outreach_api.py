@@ -7,7 +7,10 @@ import os
 import re
 import sqlite3
 import ssl
+import threading
+import time
 from dataclasses import dataclass
+from datetime import date
 from email.message import EmailMessage
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -32,9 +35,14 @@ class EmailTask:
     recipient_email: str | None = None
     include_experience_in_subject: bool = False
     subject_experience: str = ""
+    personalized_text: str = ""
+    first_name_override: str = ""
+    job_link: str = ""
 
     @property
     def first_name(self) -> str:
+        if self.first_name_override.strip():
+            return self.first_name_override.strip().split()[0]
         cleaned = self.recruiter_name.strip()
         if not cleaned:
             return ""
@@ -143,6 +151,49 @@ def init_db(db_path: Path) -> None:
             ON recruiter_outreach(recruiter_name, company, email)
             """
         )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS scheduled_outreach (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                recruiter_name TEXT NOT NULL,
+                role TEXT NOT NULL,
+                company TEXT NOT NULL,
+                domain TEXT,
+                recipient_type TEXT NOT NULL,
+                recipient_email TEXT,
+                include_experience_in_subject INTEGER NOT NULL DEFAULT 0,
+                subject_experience TEXT NOT NULL DEFAULT '',
+                personalized_text TEXT NOT NULL DEFAULT '',
+                first_name_override TEXT NOT NULL DEFAULT '',
+                job_link TEXT NOT NULL DEFAULT '',
+                scheduled_date TEXT NOT NULL,
+                status TEXT NOT NULL DEFAULT 'pending',
+                error_message TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                processed_at TIMESTAMP
+            )
+            """
+        )
+        columns = {
+            row[1]
+            for row in conn.execute("PRAGMA table_info(scheduled_outreach)").fetchall()
+            if len(row) > 1
+        }
+        if "personalized_text" not in columns:
+            conn.execute(
+                "ALTER TABLE scheduled_outreach "
+                "ADD COLUMN personalized_text TEXT NOT NULL DEFAULT ''"
+            )
+        if "first_name_override" not in columns:
+            conn.execute(
+                "ALTER TABLE scheduled_outreach "
+                "ADD COLUMN first_name_override TEXT NOT NULL DEFAULT ''"
+            )
+        if "job_link" not in columns:
+            conn.execute(
+                "ALTER TABLE scheduled_outreach "
+                "ADD COLUMN job_link TEXT NOT NULL DEFAULT ''"
+            )
         conn.commit()
         logger.info("Database initialization completed for %s", db_path)
     finally:
@@ -170,14 +221,149 @@ def save_recruiter(db_path: Path, recruiter_name: str, company: str, email: str)
         conn.close()
 
 
+def schedule_recruiter_task(db_path: Path, task: EmailTask, scheduled_date: date) -> int:
+    conn = sqlite3.connect(db_path)
+    try:
+        cursor = conn.execute(
+            """
+            INSERT INTO scheduled_outreach (
+                recruiter_name,
+                role,
+                company,
+                domain,
+                recipient_type,
+                recipient_email,
+                include_experience_in_subject,
+                subject_experience,
+                personalized_text,
+                first_name_override,
+                job_link,
+                scheduled_date
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                task.recruiter_name,
+                task.role,
+                task.company,
+                task.domain,
+                task.recipient_type,
+                task.recipient_email,
+                int(task.include_experience_in_subject),
+                task.subject_experience,
+                task.personalized_text,
+                task.first_name_override,
+                task.job_link,
+                scheduled_date.isoformat(),
+            ),
+        )
+        conn.commit()
+        scheduled_id = int(cursor.lastrowid)
+        logger.info(
+            "Scheduled email id=%s for %s on %s",
+            scheduled_id,
+            task.recipient_email or task.recruiter_name,
+            scheduled_date.isoformat(),
+        )
+        return scheduled_id
+    finally:
+        conn.close()
+
+
+def fetch_scheduled_tasks(
+    db_path: Path,
+    *,
+    status: str | None = None,
+    due_on_or_before: date | None = None,
+    limit: int = 100,
+) -> list[dict[str, Any]]:
+    query = [
+        """
+        SELECT
+            id,
+            recruiter_name,
+            role,
+            company,
+            domain,
+            recipient_type,
+            recipient_email,
+            include_experience_in_subject,
+            subject_experience,
+            personalized_text,
+            first_name_override,
+            job_link,
+            scheduled_date,
+            status,
+            error_message,
+            created_at,
+            processed_at
+        FROM scheduled_outreach
+        WHERE 1=1
+        """
+    ]
+    params: list[Any] = []
+    if status:
+        query.append("AND status = ?")
+        params.append(status)
+    if due_on_or_before is not None:
+        query.append("AND scheduled_date <= ?")
+        params.append(due_on_or_before.isoformat())
+    query.append("ORDER BY scheduled_date ASC, id ASC LIMIT ?")
+    params.append(limit)
+
+    conn = sqlite3.connect(db_path)
+    conn.row_factory = sqlite3.Row
+    try:
+        rows = conn.execute("\n".join(query), params).fetchall()
+        return [dict(row) for row in rows]
+    finally:
+        conn.close()
+
+
+def update_scheduled_task_status(
+    db_path: Path,
+    scheduled_id: int,
+    *,
+    status: str,
+    error_message: str | None = None,
+) -> None:
+    conn = sqlite3.connect(db_path)
+    try:
+        conn.execute(
+            """
+            UPDATE scheduled_outreach
+            SET status = ?, error_message = ?, processed_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+            """,
+            (status, error_message, scheduled_id),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
 def render_html_template(template: str, task: EmailTask) -> str:
     first_name = task.first_name if task.recipient_type == "recruiter" else "Team"
+    experience = task.subject_experience if task.subject_experience else "2.5+"
+    job_link = task.job_link.strip()
+    job_link_text = (
+        f"I came across this opportunity and wanted to reach out: {job_link}" if job_link else ""
+    )
     rendered = (
         template.replace("{firstName}", first_name)
         .replace("{ROLE}", task.role)
         .replace("{Company}", task.company)
+        .replace("{EXPERIENCE}", experience)
+        .replace("{Personalize text}", task.personalized_text)
+        .replace("{personalized_text}", task.personalized_text)
+        .replace("{PersonalizedText}", task.personalized_text)
+        .replace("{Job link text}", job_link_text)
+        .replace("{JobLinkText}", job_link_text)
+        .replace("{job_link_text}", job_link_text)
     )
-    return rendered.replace("\r\n", "\n").replace("\n", "<br>\n")
+    rendered = rendered.replace("\r\n", "\n")
+    rendered = re.sub(r"\n{3,}", "\n\n", rendered).strip()
+    return rendered.replace("\n", "<br>\n")
 
 
 def strip_html(value: str) -> str:
@@ -221,6 +407,18 @@ def parse_bool_field(value: Any) -> bool:
     return bool(value)
 
 
+def parse_schedule_date(value: Any) -> date | None:
+    if value is None:
+        return None
+    raw = str(value).strip()
+    if not raw:
+        return None
+    try:
+        return date.fromisoformat(raw)
+    except ValueError as exc:
+        raise ValueError("schedule_date must be in YYYY-MM-DD format") from exc
+
+
 def build_email_subject(task: EmailTask) -> str:
     role_segment = task.role
     if task.include_experience_in_subject and task.subject_experience:
@@ -228,6 +426,136 @@ def build_email_subject(task: EmailTask) -> str:
     subject_parts = ["Immediate Joiner", role_segment]
     subject_parts.append("Java, Spring Boot, Kafka")
     return " | ".join(subject_parts)
+
+
+def send_email_task(
+    task: EmailTask,
+    *,
+    sender_email: str,
+    resume_path: Path,
+    template: str,
+    dry_run: bool,
+    db_path: Path,
+    smtp: SMTP_SSL | None = None,
+) -> tuple[bool, bool | None, str | None]:
+    to_email = task.recipient_email
+    if not to_email:
+        return False, None, "Could not generate email"
+
+    if not EMAIL_REGEX.match(to_email):
+        return False, None, f"Generated invalid email: {to_email}"
+
+    html_body = render_html_template(template, task)
+    subject = build_email_subject(task)
+
+    if not dry_run:
+        if smtp is None:
+            raise RuntimeError("SMTP client is required when dry_run is false")
+        msg = create_message(
+            sender_email=sender_email,
+            to_email=to_email,
+            subject=subject,
+            html_body=html_body,
+            resume_path=resume_path,
+        )
+        smtp.send_message(msg)
+        logger.info(
+            "Email sent to %s for company=%s recipient_type=%s",
+            to_email,
+            task.company,
+            task.recipient_type,
+        )
+
+    inserted = save_recruiter(
+        db_path,
+        task.recruiter_name,
+        task.company,
+        to_email,
+    )
+    return True, inserted, None
+
+
+def scheduled_row_to_task(row: dict[str, Any]) -> EmailTask:
+    return EmailTask(
+        recruiter_name=str(row["recruiter_name"]),
+        role=str(row["role"]),
+        company=str(row["company"]),
+        domain=str(row["domain"]).strip() or None,
+        recipient_type=str(row["recipient_type"]),
+        recipient_email=str(row["recipient_email"]).strip() or None,
+        include_experience_in_subject=bool(row["include_experience_in_subject"]),
+        subject_experience=str(row["subject_experience"] or ""),
+        personalized_text=str(row.get("personalized_text") or ""),
+        first_name_override=str(row.get("first_name_override") or ""),
+        job_link=str(row.get("job_link") or "").strip(),
+    )
+
+
+def run_scheduler(handler_cls: type["OutreachHandler"], poll_interval_seconds: int) -> None:
+    logger.info(
+        "Scheduler thread started with poll interval=%ss and db=%s",
+        poll_interval_seconds,
+        handler_cls.db_path,
+    )
+    while True:
+        try:
+            due_tasks = fetch_scheduled_tasks(
+                handler_cls.db_path,
+                status="pending",
+                due_on_or_before=date.today(),
+                limit=100,
+            )
+            if due_tasks:
+                logger.info("Scheduler found %s due scheduled emails", len(due_tasks))
+
+            smtp = None
+            try:
+                if due_tasks and not handler_cls.dry_run:
+                    context = ssl.create_default_context()
+                    smtp = SMTP_SSL("smtp.gmail.com", 465, context=context)
+                    smtp.login(handler_cls.sender_email, handler_cls.app_password)
+
+                for row in due_tasks:
+                    task = scheduled_row_to_task(row)
+                    scheduled_id = int(row["id"])
+                    try:
+                        sent, _, reason = send_email_task(
+                            task,
+                            sender_email=handler_cls.sender_email,
+                            resume_path=handler_cls.resume_path,
+                            template=handler_cls.template,
+                            dry_run=handler_cls.dry_run,
+                            db_path=handler_cls.db_path,
+                            smtp=smtp,
+                        )
+                        if sent:
+                            update_scheduled_task_status(
+                                handler_cls.db_path,
+                                scheduled_id,
+                                status="sent",
+                            )
+                        else:
+                            update_scheduled_task_status(
+                                handler_cls.db_path,
+                                scheduled_id,
+                                status="failed",
+                                error_message=reason,
+                            )
+                    except Exception as exc:
+                        logger.exception("Scheduled email id=%s failed", scheduled_id)
+                        update_scheduled_task_status(
+                            handler_cls.db_path,
+                            scheduled_id,
+                            status="failed",
+                            error_message=str(exc),
+                        )
+            finally:
+                if smtp is not None:
+                    smtp.quit()
+        except Exception:
+            logger.exception("Scheduler loop failed")
+
+        time.sleep(max(poll_interval_seconds, 5))
 
 
 def build_recruiter_task(
@@ -240,6 +568,8 @@ def build_recruiter_task(
     resolved_domain: str,
     include_experience_in_subject: bool,
     subject_experience: str,
+    personalized_text: str,
+    job_link: str,
 ) -> EmailTask | None:
     if isinstance(recruiter_item, str):
         raw_value = recruiter_item.strip()
@@ -259,6 +589,12 @@ def build_recruiter_task(
                 recruiter_email = None
     elif isinstance(recruiter_item, dict):
         explicit_email = str(recruiter_item.get("email", "")).strip().lower() or None
+        first_name_override = str(
+            recruiter_item.get(
+                "first_name",
+                recruiter_item.get("mention_name", ""),
+            )
+        ).strip()
         recruiter_name = str(
             recruiter_item.get(
                 "name",
@@ -282,9 +618,12 @@ def build_recruiter_task(
             except ValueError:
                 recruiter_email = None
     else:
+        first_name_override = ""
         raise ValueError(
             f"Item {item_index} recruiter {recruiter_index} must be a string or object"
         )
+    if isinstance(recruiter_item, str):
+        first_name_override = ""
 
     if not recruiter_name:
         return None
@@ -298,6 +637,9 @@ def build_recruiter_task(
         recipient_email=recruiter_email,
         include_experience_in_subject=include_experience_in_subject,
         subject_experience=subject_experience,
+        personalized_text=personalized_text,
+        first_name_override=first_name_override,
+        job_link=job_link,
     )
 
 
@@ -344,7 +686,7 @@ class OutreachHandler(BaseHTTPRequestHandler):
 
         if self.path == "/applications/refresh":
             try:
-                self.application_payload = refresh_application_payload(
+                type(self).application_payload = refresh_application_payload(
                     self.db_path,
                     role=self.default_role,
                     output_path=self.application_output_path,
@@ -361,12 +703,30 @@ class OutreachHandler(BaseHTTPRequestHandler):
             self._json(
                 200,
                 {
-                    "count": len(self.application_payload),
-                    "applications": self.application_payload,
+                    "count": len(type(self).application_payload),
+                    "applications": type(self).application_payload,
                     "db_path": str(self.db_path),
                     "output_path": str(self.application_output_path),
                     "role": self.default_role,
                     "refreshed": True,
+                },
+            )
+            return
+
+        if self.path == "/scheduled":
+            try:
+                scheduled = fetch_scheduled_tasks(self.db_path, limit=200)
+            except Exception as exc:
+                logger.exception("Failed to fetch scheduled entries")
+                self._json(500, {"error": str(exc)})
+                return
+
+            self._json(
+                200,
+                {
+                    "count": len(scheduled),
+                    "scheduled": scheduled,
+                    "db_path": str(self.db_path),
                 },
             )
             return
@@ -427,11 +787,18 @@ class OutreachHandler(BaseHTTPRequestHandler):
             role = str(item.get("role", "")).strip()
             company = str(item.get("company", "")).strip()
             domain = str(item.get("domain", "")).strip() or None
-            send_company_handles = bool(item.get("send_company_handles", False))
+            send_company_handles = parse_bool_field(item.get("send_company_handles", False))
             include_experience_in_subject = parse_bool_field(
                 item.get("include_experience_in_subject", False)
             )
             subject_experience = str(item.get("subject_experience", "")).strip()
+            personalized_text = str(item.get("personalized_text", "")).strip()
+            job_link = str(item.get("job_link", item.get("jobLink", ""))).strip()
+            try:
+                schedule_for = parse_schedule_date(item.get("schedule_date"))
+            except ValueError as exc:
+                self._json(400, {"error": f"Item {index} {exc}"})
+                return
             recruiters = item.get("recruiters")
             if not role or not company or not isinstance(recruiters, list) or not recruiters:
                 self._json(
@@ -451,6 +818,17 @@ class OutreachHandler(BaseHTTPRequestHandler):
                         "error": (
                             f"Item {index} must provide non-empty subject_experience when "
                             "include_experience_in_subject is true"
+                        )
+                    },
+                )
+                return
+            if schedule_for is not None and schedule_for < date.today():
+                self._json(
+                    400,
+                    {
+                        "error": (
+                            f"Item {index} schedule_date cannot be in the past: "
+                            f"{schedule_for.isoformat()}"
                         )
                     },
                 )
@@ -476,6 +854,8 @@ class OutreachHandler(BaseHTTPRequestHandler):
                         resolved_domain=resolved_domain,
                         include_experience_in_subject=include_experience_in_subject,
                         subject_experience=subject_experience,
+                        personalized_text=personalized_text,
+                        job_link=job_link,
                     )
                 except ValueError as exc:
                     self._json(400, {"error": str(exc)})
@@ -494,6 +874,8 @@ class OutreachHandler(BaseHTTPRequestHandler):
                         recipient_email=f"careers@{resolved_domain}",
                         include_experience_in_subject=include_experience_in_subject,
                         subject_experience=subject_experience,
+                        personalized_text=personalized_text,
+                        job_link=job_link,
                     )
                 )
                 item_tasks.append(
@@ -506,6 +888,8 @@ class OutreachHandler(BaseHTTPRequestHandler):
                         recipient_email=f"talentacquisition@{resolved_domain}",
                         include_experience_in_subject=include_experience_in_subject,
                         subject_experience=subject_experience,
+                        personalized_text=personalized_text,
+                        job_link=job_link,
                     )
                 )
                 item_tasks.append(
@@ -518,6 +902,8 @@ class OutreachHandler(BaseHTTPRequestHandler):
                         recipient_email=f"hr@{resolved_domain}",
                         include_experience_in_subject=include_experience_in_subject,
                         subject_experience=subject_experience,
+                        personalized_text=personalized_text,
+                        job_link=job_link,
                     )
                 )
 
@@ -538,6 +924,104 @@ class OutreachHandler(BaseHTTPRequestHandler):
 
         logger.info("Prepared %s email tasks for processing", len(tasks))
 
+        immediate_tasks: list[EmailTask] = []
+        scheduled_count = 0
+        scheduled_dates: list[str] = []
+        for index, item in enumerate(payload):
+            schedule_for = parse_schedule_date(item.get("schedule_date"))
+            item_tasks = []
+            role = str(item.get("role", "")).strip()
+            company = str(item.get("company", "")).strip()
+            domain = str(item.get("domain", "")).strip() or None
+            resolved_domain = resolve_domain(company, domain)
+            include_experience_in_subject = parse_bool_field(
+                item.get("include_experience_in_subject", False)
+            )
+            subject_experience = str(item.get("subject_experience", "")).strip()
+            personalized_text = str(item.get("personalized_text", "")).strip()
+            job_link = str(item.get("job_link", item.get("jobLink", ""))).strip()
+            recruiters = item.get("recruiters")
+
+            for recruiter_index, recruiter_item in enumerate(recruiters):
+                task = build_recruiter_task(
+                    recruiter_item,
+                    item_index=index,
+                    recruiter_index=recruiter_index,
+                    role=role,
+                    company=company,
+                    resolved_domain=resolved_domain,
+                    include_experience_in_subject=include_experience_in_subject,
+                    subject_experience=subject_experience,
+                    personalized_text=personalized_text,
+                    job_link=job_link,
+                )
+                if task is not None:
+                    item_tasks.append(task)
+
+            if parse_bool_field(item.get("send_company_handles", False)):
+                item_tasks.append(
+                    EmailTask(
+                        recruiter_name="Careers Team",
+                        role=role,
+                        company=company,
+                        domain=resolved_domain,
+                        recipient_type="company_handle",
+                        recipient_email=f"careers@{resolved_domain}",
+                        include_experience_in_subject=include_experience_in_subject,
+                        subject_experience=subject_experience,
+                        personalized_text=personalized_text,
+                        job_link=job_link,
+                    )
+                )
+                item_tasks.append(
+                    EmailTask(
+                        recruiter_name="Talent Acquisition Team",
+                        role=role,
+                        company=company,
+                        domain=resolved_domain,
+                        recipient_type="company_handle",
+                        recipient_email=f"talentacquisition@{resolved_domain}",
+                        include_experience_in_subject=include_experience_in_subject,
+                        subject_experience=subject_experience,
+                        personalized_text=personalized_text,
+                        job_link=job_link,
+                    )
+                )
+                item_tasks.append(
+                    EmailTask(
+                        recruiter_name="HR Team",
+                        role=role,
+                        company=company,
+                        domain=resolved_domain,
+                        recipient_type="company_handle",
+                        recipient_email=f"hr@{resolved_domain}",
+                        include_experience_in_subject=include_experience_in_subject,
+                        subject_experience=subject_experience,
+                        personalized_text=personalized_text,
+                        job_link=job_link,
+                    )
+                )
+
+            seen_emails: set[str] = set()
+            deduped_tasks: list[EmailTask] = []
+            for task in item_tasks:
+                if not task.recipient_email:
+                    deduped_tasks.append(task)
+                    continue
+                email_key = task.recipient_email.lower()
+                if email_key in seen_emails:
+                    continue
+                seen_emails.add(email_key)
+                deduped_tasks.append(task)
+
+            if schedule_for is not None and schedule_for > date.today():
+                for task in deduped_tasks:
+                    schedule_recruiter_task(self.db_path, task, schedule_for)
+                    scheduled_count += 1
+                scheduled_dates.append(schedule_for.isoformat())
+            else:
+                immediate_tasks.extend(deduped_tasks)
+
         sent = 0
         stored = 0
         duplicate_skipped = 0
@@ -552,66 +1036,45 @@ class OutreachHandler(BaseHTTPRequestHandler):
         skipped: list[dict[str, str]] = []
         smtp = None
         try:
-            if not self.dry_run:
+            if immediate_tasks and not self.dry_run:
                 context = ssl.create_default_context()
                 smtp = SMTP_SSL("smtp.gmail.com", 465, context=context)
                 smtp.login(self.sender_email, self.app_password)
                 logger.info("SMTP connection established for sender %s", self.sender_email)
-            else:
+            elif immediate_tasks:
                 logger.info("Running send request in dry-run mode")
 
-            for task in tasks:
+            for task in immediate_tasks:
                 if task.recipient_type == "recruiter":
                     recruiter_attempted += 1
                 else:
                     company_handle_attempted += 1
 
-                to_email = task.recipient_email
-                if not to_email:
-                    skipped.append(
-                        {
-                            "recipient": task.recruiter_name,
-                            "recipient_type": task.recipient_type,
-                            "reason": "Could not generate email",
-                        }
-                    )
-                    continue
-
-                if not EMAIL_REGEX.match(to_email):
-                    skipped.append(
-                        {
-                            "recipient": task.recruiter_name,
-                            "recipient_type": task.recipient_type,
-                            "reason": f"Generated invalid email: {to_email}",
-                        }
-                    )
-                    continue
-
-                html_body = render_html_template(self.template, task)
-                subject = build_email_subject(task)
-
-                if not self.dry_run:
-                    msg = create_message(
+                try:
+                    task_sent, inserted, reason = send_email_task(
+                        task,
                         sender_email=self.sender_email,
-                        to_email=to_email,
-                        subject=subject,
-                        html_body=html_body,
                         resume_path=self.resume_path,
+                        template=self.template,
+                        dry_run=self.dry_run,
+                        db_path=self.db_path,
+                        smtp=smtp,
                     )
-                    smtp.send_message(msg)
-                    logger.info(
-                        "Email sent to %s for company=%s recipient_type=%s",
-                        to_email,
-                        task.company,
-                        task.recipient_type,
-                    )
+                except Exception as exc:
+                    logger.exception("Send request failed")
+                    self._json(500, {"error": str(exc)})
+                    return
 
-                inserted = save_recruiter(
-                    self.db_path,
-                    task.recruiter_name,
-                    task.company,
-                    to_email,
-                )
+                if not task_sent:
+                    skipped.append(
+                        {
+                            "recipient": task.recruiter_name,
+                            "recipient_type": task.recipient_type,
+                            "reason": reason or "Unknown send failure",
+                        }
+                    )
+                    continue
+
                 if inserted:
                     stored += 1
                     if task.recipient_type == "recruiter":
@@ -624,23 +1087,22 @@ class OutreachHandler(BaseHTTPRequestHandler):
                         recruiter_duplicate_skipped += 1
                     else:
                         company_handle_duplicate_skipped += 1
+
                 sent += 1
                 if task.recipient_type == "recruiter":
                     recruiter_sent += 1
                 else:
                     company_handle_sent += 1
-        except Exception as exc:
-            logger.exception("Send request failed")
-            self._json(500, {"error": str(exc)})
-            return
         finally:
             if smtp is not None:
                 smtp.quit()
                 logger.info("SMTP connection closed")
 
         logger.info(
-            "Send request completed processed=%s sent=%s stored=%s skipped=%s duplicates=%s",
+            "Send request completed processed=%s immediate=%s scheduled=%s sent=%s stored=%s skipped=%s duplicates=%s",
             len(tasks),
+            len(immediate_tasks),
+            scheduled_count,
             sent,
             stored,
             len(skipped),
@@ -651,6 +1113,9 @@ class OutreachHandler(BaseHTTPRequestHandler):
             200,
             {
                 "processed": len(tasks),
+                "immediate_processed": len(immediate_tasks),
+                "scheduled": scheduled_count,
+                "scheduled_dates": sorted(set(scheduled_dates)),
                 "sent": sent,
                 "stored": stored,
                 "duplicate_skipped": duplicate_skipped,
@@ -694,7 +1159,7 @@ def build_handler() -> type[OutreachHandler]:
         or "converter/appliesOutput.json"
     )
 
-    template_path_value = os.getenv("EMAIL_TEMPLATE_PATH", "email_template.html").strip()
+    template_path_value = os.getenv("EMAIL_TEMPLATE_PATH", "email_template_2.html").strip()
     template_path = resolve_path(template_path_value)
     if not template_path.exists():
         raise FileNotFoundError(f"EMAIL_TEMPLATE_PATH not found: {template_path}")
@@ -734,10 +1199,23 @@ def build_handler() -> type[OutreachHandler]:
     return ConfiguredOutreachHandler
 
 
+def start_scheduler(handler: type[OutreachHandler]) -> threading.Thread:
+    poll_interval_seconds = int(os.getenv("SCHEDULER_POLL_INTERVAL_SECONDS", "60"))
+    scheduler_thread = threading.Thread(
+        target=run_scheduler,
+        args=(handler, poll_interval_seconds),
+        name="scheduled-outreach-worker",
+        daemon=True,
+    )
+    scheduler_thread.start()
+    return scheduler_thread
+
+
 def main() -> int:
     port = int(os.getenv("PORT", "8000"))
-    host = os.getenv("HOST", "127.0.0.1").strip() or "127.0.0.1"
+    host = os.getenv("HOST", "0.0.0.0").strip() or "0.0.0.0"
     handler = build_handler()
+    start_scheduler(handler)
     server = ThreadingHTTPServer((host, port), handler)
     logger.info("Outreach API starting on http://%s:%s", host, port)
     logger.info("Using DB at %s", handler.db_path)
